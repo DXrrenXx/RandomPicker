@@ -29,7 +29,7 @@ jobs:
             exit 1
           }
           Write-Host "找到项目文件：$($csproj.FullName)"
-          dotnet publish $csproj.FullName -c Release -r win-x64 -p:Platform=x64 -p:SelfContained=true -p:WindowsAppSDKSelfContained=true -o publish -v diag
+          dotnet publish $csproj.FullName -c Release -r win-x64 -p:Platform=x64 -p:SelfContained=true -p:WindowsAppSDKSelfContained=true -o publish -v d
 
       - name: 打包 ZIP
         shell: pwsh
