@@ -19,12 +19,17 @@ jobs:
           dotnet-version: 8.0.x
 
       - name: 发布程序（自包含，无需安装运行时）
-        run: >
-          dotnet publish RandomPicker/RandomPicker.csproj
-          -c Release -r win-x64 -p:Platform=x64
-          -p:SelfContained=true
-          -p:WindowsAppSDKSelfContained=true
-          -o publish
+        shell: pwsh
+        run: |
+          $csproj = Get-ChildItem -Recurse -Filter "RandomPicker.csproj" |
+                    Where-Object { $_.FullName -notmatch '\\\.git\\' } |
+                    Select-Object -First 1
+          if (-not $csproj) {
+            Write-Host "::error::仓库里找不到 RandomPicker.csproj。请确认上传的是解压后的源码内容（RandomPicker.csproj、Views、Models、Services、.github 等文件和文件夹），GitHub 不会自动解压 zip 压缩包。"
+            exit 1
+          }
+          Write-Host "找到项目文件：$($csproj.FullName)"
+          dotnet publish $csproj.FullName -c Release -r win-x64 -p:Platform=x64 -p:SelfContained=true -p:WindowsAppSDKSelfContained=true -o publish
 
       - name: 打包 ZIP
         shell: pwsh
