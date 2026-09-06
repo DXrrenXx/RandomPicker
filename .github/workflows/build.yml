@@ -1,0 +1,52 @@
+name: 构建 Windows EXE
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: 发布程序（自包含，无需安装运行时）
+        shell: pwsh
+        run: |
+          # 兼容两种仓库结构：csproj 直接在根目录，或在 RandomPicker 子目录
+          $proj = Get-ChildItem -Recurse -Filter RandomPicker.csproj | Select-Object -First 1
+          if (-not $proj) { throw "未找到 RandomPicker.csproj" }
+          dotnet publish $proj.FullName -c Release -r win-x64 -p:Platform=x64 `
+            -p:SelfContained=true -p:WindowsAppSDKSelfContained=true -o publish
+
+      - name: 安装 Inno Setup
+        run: choco install innosetup -y
+
+      - name: 构建安装包
+        shell: pwsh
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+
+      - name: 打包 ZIP
+        shell: pwsh
+        run: Compress-Archive -Path publish/* -DestinationPath RandomPicker.zip
+
+      - name: 上传便携版 ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: RandomPicker-EXE
+          path: RandomPicker.zip
+
+      - name: 上传安装包
+        uses: actions/upload-artifact@v4
+        with:
+          name: RandomPicker-Setup
+          path: installer/*.exe

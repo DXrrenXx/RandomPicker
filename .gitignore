@@ -1,0 +1,8 @@
+bin/
+obj/
+publish/
+installer/
+RandomPicker/
+publish.zip
+.vs/
+*.user
