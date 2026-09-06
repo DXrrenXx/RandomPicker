@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>随机点名 · 点到谁，谁回答</title>
+<meta name="description" content="随机点名：免费的 Windows 课堂点名工具。名字在大屏幕上滚动，空格一按，全班屏住呼吸。开源、免安装、数据在本地。">
+<meta property="og:title" content="随机点名 · 点到谁，谁回答">
+<meta property="og:description" content="免费的 Windows 课堂点名工具。大字滚动，空格定格，名单导入只要一个 TXT。">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23D2401E'/%3E%3Ctext x='32' y='45' font-size='36' text-anchor='middle' fill='white' font-family='serif' font-weight='bold'%3E点%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;900&display=swap" rel="stylesheet">
+<style>
+/* ========== 设计令牌 ========== */
+:root {
+  --paper: #FBF9F4;        /* 稿纸 */
+  --paper-dim: #F3EFE5;    /* 纸面暗部 */
+  --ink: #1D1B18;          /* 墨 */
+  --ink-soft: #6B645B;     /* 淡墨 */
+  --red: #D2401E;          /* 红笔 */
+  --red-deep: #B03214;
+  --night: #1B1916;        /* 夜自习 */
+  --night-text: #EFEBE2;
+  --hairline: rgba(29, 27, 24, .14);
+  --grid-line: rgba(29, 27, 24, .045);
+  --serif: "Noto Serif SC", "Songti SC", "STSong", "SimSun", serif;
+  --sans: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --ease: cubic-bezier(.22, 1, .36, 1);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.75;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* 稿纸方格底纹 */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 34px 34px;
+}
+
+::selection { background: var(--red); color: #fff; }
+
+:focus-visible { outline: 2px solid var(--red); outline-offset: 3px; border-radius: 4px; }
+
+.wrap { max-width: 1080px; margin-inline: auto; padding-inline: clamp(20px, 5vw, 48px); }
+
+section { scroll-margin-top: 84px; }
+
+/* ========== 印章 Logo ========== */
+.seal {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  background: var(--red);
+  color: #fff;
+  font-family: var(--serif);
+  font-weight: 900;
+  font-size: 21px;
+  line-height: 1;
+  border-radius: 7px;
+  transform: rotate(-4deg);
+  box-shadow: 0 2px 8px rgba(210, 64, 30, .3);
+}
+
+/* ========== 顶部导航 ========== */
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(251, 249, 244, .86);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid transparent;
+  transition: border-color .3s ease;
+}
+.nav.scrolled { border-bottom-color: var(--hairline); }
+.nav-inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 64px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--ink);
+  font-family: var(--serif);
+  font-weight: 900;
+  font-size: 19px;
+  letter-spacing: .04em;
+}
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  margin-left: auto;
+}
+.nav-links a {
+  color: var(--ink-soft);
+  text-decoration: none;
+  font-size: 14.5px;
+  transition: color .2s ease;
+}
+.nav-links a:hover { color: var(--red); }
+.nav-links a.gh { display: inline-flex; align-items: center; gap: 6px; }
+.nav-links a.gh svg { width: 18px; height: 18px; fill: currentColor; }
+.btn-nav {
+  background: var(--red);
+  color: #fff !important;
+  padding: 8px 20px;
+  border-radius: 8px;
+  font-weight: 500;
+  transition: background .2s ease, transform .2s ease;
+}
+.btn-nav:hover { background: var(--red-deep); transform: translateY(-1px); }
+@media (max-width: 760px) { .nav-links a:not(.btn-nav):not(.gh) { display: none; } }
+
+/* ========== 首屏 Hero ========== */
+.hero { padding: clamp(64px, 10vh, 110px) 0 72px; text-align: center; }
+.hero-title {
+  font-family: var(--serif);
+  font-weight: 900;
+  font-size: clamp(52px, 9vw, 108px);
+  line-height: 1.18;
+  letter-spacing: .02em;
+}
+.hero-sub {
+  margin: 26px auto 0;
+  max-width: 30em;
+  color: var(--ink-soft);
+  font-size: clamp(15.5px, 1.6vw, 17.5px);
+}
+.hero-cta { margin-top: 34px; display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+
+/* ========== 按钮 ========== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 14px 34px;
+  border-radius: 9px;
+  border: 1.5px solid var(--ink);
+  font-family: var(--sans);
+  font-size: 16px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform .22s var(--ease), box-shadow .22s ease, background .2s ease, color .2s ease;
+}
+.btn:active { transform: scale(.97); }
+.btn-red { background: var(--red); border-color: var(--red); color: #fff; box-shadow: 0 4px 16px rgba(210, 64, 30, .25); }
+.btn-red:hover { background: var(--red-deep); border-color: var(--red-deep); transform: translateY(-2px); box-shadow: 0 8px 22px rgba(210, 64, 30, .32); }
+.btn-ink { background: transparent; color: var(--ink); }
+.btn-ink:hover { background: var(--ink); color: var(--paper); transform: translateY(-2px); }
+.btn svg { width: 19px; height: 19px; fill: currentColor; }
+
+/* ========== Live Demo 点名台 ========== */
+.demo {
+  position: relative;
+  max-width: 620px;
+  margin: 56px auto 0;
+  background: #fff;
+  border: 1px solid var(--hairline);
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(29, 27, 24, .05), 0 16px 48px rgba(29, 27, 24, .08);
+  padding: 26px 32px 24px;
+  text-align: center;
+}
+.demo-class { font-size: 14px; color: var(--ink-soft); letter-spacing: .06em; }
+.demo-stage { position: relative; padding: 30px 0 22px; min-height: 190px; display: grid; place-items: center; }
+.demo-name {
+  font-family: var(--serif);
+  font-weight: 900;
+  font-size: clamp(64px, 12vw, 128px);
+  line-height: 1.1;
+  letter-spacing: .06em;
+  white-space: nowrap;
+}
+.demo-name.is-placeholder { font-size: clamp(30px, 5vw, 44px); color: var(--ink-soft); letter-spacing: .3em; }
+
+/* 红笔圈名 */
+.circle-mark {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -52%) rotate(-2.5deg);
+  width: 260px;
+  pointer-events: none;
+  opacity: 0;
+}
+.circle-mark.draw { opacity: 1; }
+.circle-mark path {
+  fill: none;
+  stroke: var(--red);
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+}
+.circle-mark.draw path { animation: circleDraw .55s ease-out forwards; }
+.circle-mark.draw path.p2 { animation-delay: .12s; opacity: .55; stroke-width: 4; }
+@keyframes circleDraw { to { stroke-dashoffset: 0; } }
+
+.demo-btn { margin-top: 6px; min-width: 220px; justify-content: center; font-size: 17px; }
+.demo-hint { margin-top: 14px; font-size: 13px; color: var(--ink-soft); }
+.demo-history { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--hairline); font-size: 13px; color: var(--ink-soft); min-height: 22px; }
+.demo-history span { transition: opacity .4s ease; }
+
+/* ========== 名字走马灯 ========== */
+.marquee {
+  overflow: hidden;
+  border-block: 1px solid var(--hairline);
+  padding: 20px 0;
+  user-select: none;
+}
+.marquee-track { display: flex; width: max-content; animation: marquee 40s linear infinite; }
+.marquee-track span {
+  white-space: nowrap;
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: clamp(17px, 2.4vw, 24px);
+  color: var(--ink-soft);
+}
+@keyframes marquee { to { transform: translateX(-50%); } }
+
+/* ========== 章节公共 ========== */
+.section { padding: clamp(80px, 12vh, 130px) 0; }
+.section-title {
+  font-family: var(--serif);
+  font-weight: 900;
+  font-size: clamp(32px, 5vw, 52px);
+  line-height: 1.25;
+  letter-spacing: .02em;
+}
+.section-lead { margin-top: 16px; max-width: 34em; color: var(--ink-soft); }
+
+/* ========== 三步上手 ========== */
+.steps { list-style: none; margin-top: 64px; position: relative; max-width: 640px; }
+.steps::before {
+  content: "";
+  position: absolute;
+  left: 23px;
+  top: 14px;
+  bottom: 14px;
+  width: 2px;
+  background: var(--hairline);
+  transform: scaleY(0);
+  transform-origin: top;
+  transition: transform 1.5s var(--ease) .35s;
+}
+.steps.in::before { transform: scaleY(1); }
+.step { position: relative; padding: 0 0 52px 76px; }
+.step:last-child { padding-bottom: 0; }
+.step-no {
+  position: absolute;
+  left: 0;
+  top: -4px;
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  background: var(--paper);
+  border: 2px solid var(--red);
+  border-radius: 50%;
+  color: var(--red);
+  font-family: var(--serif);
+  font-weight: 900;
+  font-size: 21px;
+}
+.step h3 { font-family: var(--serif); font-weight: 900; font-size: 22px; letter-spacing: .02em; }
+.step p { margin-top: 8px; color: var(--ink-soft); max-width: 32em; }
+.step code {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: .88em;
+  background: var(--paper-dim);
+  border: 1px solid var(--hairline);
+  border-radius: 5px;
+  padding: 1px 7px;
+}
+
+/* ========== 使用说明书 ========== */
+.manual-head {
+  margin-top: 56px;
+  border-block: 1px solid var(--ink);
+  padding: 14px 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.manual-title { font-family: var(--serif); font-weight: 900; letter-spacing: .35em; font-size: 15px; }
+.manual-edition { font-size: 13px; color: var(--ink-soft); }
+.manual-row {
+  display: grid;
+  grid-template-columns: 190px 1fr;
+  gap: 12px 40px;
+  padding: 26px 4px;
+  border-bottom: 1px solid var(--hairline);
+}
+.manual-row h3 { font-family: var(--serif); font-weight: 900; font-size: 19px; letter-spacing: .03em; }
+.manual-row p { color: var(--ink-soft); max-width: 36em; }
+.manual-row p strong { color: var(--ink); font-weight: 500; }
+@media (max-width: 640px) { .manual-row { grid-template-columns: 1fr; } }
+
+/* ========== 隐藏玩法（夜间章节） ========== */
+.secret { background: var(--night); color: var(--night-text); }
+.secret .section-title { color: var(--night-text); }
+.secret .section-lead { color: rgba(239, 235, 226, .62); }
+.secret-lines { margin-top: 52px; max-width: 640px; }
+.secret-lines li {
+  list-style: none;
+  padding: 15px 0;
+  border-bottom: 1px solid rgba(239, 235, 226, .1);
+  font-size: 16.5px;
+  color: rgba(239, 235, 226, .88);
+}
+.secret-lines li::before { content: "·"; color: var(--red); margin-right: 12px; font-weight: 700; }
+.redact {
+  background: rgba(239, 235, 226, .9);
+  color: transparent;
+  border-radius: 4px;
+  padding: 1px 8px;
+  cursor: pointer;
+  user-select: none;
+  transition: background .45s ease, color .45s ease;
+  font-weight: 500;
+}
+.redact:hover, .redact.open { background: transparent; color: var(--red); }
+.secret-hint { margin-top: 26px; font-size: 13.5px; color: rgba(239, 235, 226, .45); }
+.secret-note { margin-top: 40px; font-family: var(--serif); font-weight: 600; font-size: clamp(18px, 2.4vw, 23px); color: var(--night-text); }
+.secret-note em { font-style: normal; color: var(--red); }
+
+/* ========== 规格 ========== */
+.spec-grid { margin-top: 52px; border-top: 1px solid var(--hairline); }
+.spec-row {
+  display: grid;
+  grid-template-columns: 190px 1fr;
+  gap: 12px 40px;
+  padding: 17px 4px;
+  border-bottom: 1px solid var(--hairline);
+}
+.spec-row dt { color: var(--ink-soft); font-size: 14.5px; }
+.spec-row dd { font-size: 15.5px; }
+.spec-row dd a { color: var(--red); text-decoration: none; border-bottom: 1px solid rgba(210, 64, 30, .35); transition: border-color .2s ease; }
+.spec-row dd a:hover { border-bottom-color: var(--red); }
+@media (max-width: 640px) { .spec-row { grid-template-columns: 110px 1fr; gap: 8px 20px; } }
+
+/* ========== 下载 CTA ========== */
+.cta-inner { position: relative; text-align: center; }
+.cta-title { font-family: var(--serif); font-weight: 900; font-size: clamp(34px, 5.4vw, 56px); line-height: 1.3; }
+.cta-sub { margin: 18px auto 0; color: var(--ink-soft); max-width: 28em; }
+.cta-btns { margin-top: 38px; display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+.stamp {
+  position: absolute;
+  right: clamp(0px, 6vw, 80px);
+  top: -34px;
+  width: 108px;
+  height: 108px;
+  border: 3px solid var(--red);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--red);
+  font-family: var(--serif);
+  font-weight: 900;
+  font-size: 19px;
+  line-height: 1.35;
+  letter-spacing: .1em;
+  transform: rotate(11deg);
+  opacity: .92;
+  pointer-events: none;
+}
+@media (max-width: 760px) {
+  .stamp { position: static; margin: 0 auto 30px; transform: rotate(8deg); }
+}
+
+/* ========== 页脚 ========== */
+.footer { border-top: 1px solid var(--hairline); padding: 34px 0 44px; }
+.footer-inner { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 14px; color: var(--ink-soft); }
+.footer-inner .gap { margin-left: auto; }
+.footer a { color: var(--ink-soft); text-decoration: none; border-bottom: 1px solid var(--hairline); transition: color .2s ease, border-color .2s ease; }
+.footer a:hover { color: var(--red); border-bottom-color: var(--red); }
+
+/* ========== 滚动显现系统 ========== */
+.reveal, .stagger > * {
+  opacity: 0;
+  transform: translateY(32px);
+  transition: opacity .85s var(--ease), transform .85s var(--ease);
+}
+.reveal { transition-delay: var(--d, 0ms); }
+.stagger > * { transition-delay: calc(var(--i, 0) * 95ms); }
+.reveal[data-from="left"] { transform: translateX(-44px); }
+.reveal[data-from="right"] { transform: translateX(44px); }
+.reveal[data-from="pop"] { transform: scale(.55) rotate(16deg); }
+.reveal.in, .stagger.in > * { opacity: 1; transform: none; }
+
+/* ========== 降级：减少动效 ========== */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .reveal, .stagger > * { opacity: 1; transform: none; transition: none; }
+  .steps::before { transform: scaleY(1); transition: none; }
+  .marquee-track { animation: none; }
+  .circle-mark path { stroke-dashoffset: 0; }
+  .circle-mark.draw path { animation: none; }
+  * { animation-duration: .01ms !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- ========== 导航 ========== -->
+<header class="nav" id="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="#top"><span class="seal">点</span>随机点名</a>
+    <nav class="nav-links">
+      <a href="#how">怎么用</a>
+      <a href="#manual">说明书</a>
+      <a href="#secret">隐藏玩法</a>
+      <a href="#specs">规格</a>
+      <a class="gh" href="https://github.com/DXrrenXx/RandomPicker" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+        GitHub
+      </a>
+      <a class="btn-nav" href="https://github.com/DXrrenXx/RandomPicker/releases" target="_blank" rel="noopener">下载</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ========== Hero + Live Demo ========== -->
+<section class="hero" id="top">
+  <div class="wrap">
+    <h1 class="hero-title reveal" style="--d:0ms">点到谁，<br>谁回答。</h1>
+    <p class="hero-sub reveal" style="--d:140ms">随机点名，一个免费的 Windows 课堂点名小工具。名字在投影上滚动，空格一按——全班屏住呼吸。</p>
+    <div class="hero-cta reveal" style="--d:280ms">
+      <a class="btn btn-red" href="https://github.com/DXrrenXx/RandomPicker/releases" target="_blank" rel="noopener">免费下载</a>
+      <a class="btn btn-ink" href="https://github.com/DXrrenXx/RandomPicker" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+        源代码
+      </a>
+    </div>
+
+    <div class="demo reveal" style="--d:420ms" id="demo">
+      <div class="demo-class">三年二班 · 24 人</div>
+      <div class="demo-stage">
+        <span class="demo-name is-placeholder" id="demoName">待 抽 取</span>
+        <svg class="circle-mark" id="circleMark" viewBox="0 0 320 170" aria-hidden="true">
+          <path pathLength="100" d="M22,88 C26,32 132,10 182,20 C258,32 300,56 296,94 C292,134 196,156 122,150 C52,144 16,124 22,88"/>
+          <path pathLength="100" class="p2" d="M28,82 C42,38 142,18 194,26 C262,36 304,64 294,100 C284,136 182,152 114,144 C56,136 20,114 28,82"/>
+        </svg>
+      </div>
+      <button class="btn btn-red demo-btn" id="demoBtn">开始点名</button>
+      <div class="demo-hint">按空格键也可以开始 / 停止</div>
+      <div class="demo-history" id="demoHistory" aria-live="polite"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== 名字走马灯 ========== -->
+<div class="marquee" aria-hidden="true">
+  <div class="marquee-track" id="marqueeTrack">
+    <span>王雨桐、李浩然、张梓萱、刘子墨、陈诗涵、杨晨曦、赵思远、黄嘉怡、周子轩、吴雅静、徐天佑、孙艺涵、胡文博、朱雨欣、高子豪、林思彤、何宇航、郭欣怡、马俊杰、罗雅婷、梁思远、宋雨泽、郑浩然、谢婉婷、</span>
+    <span>王雨桐、李浩然、张梓萱、刘子墨、陈诗涵、杨晨曦、赵思远、黄嘉怡、周子轩、吴雅静、徐天佑、孙艺涵、胡文博、朱雨欣、高子豪、林思彤、何宇航、郭欣怡、马俊杰、罗雅婷、梁思远、宋雨泽、郑浩然、谢婉婷、</span>
+  </div>
+</div>
+
+<!-- ========== 三步上手 ========== -->
+<section class="section" id="how">
+  <div class="wrap">
+    <h2 class="section-title reveal">三步，开始第一次点名</h2>
+    <ol class="steps stagger">
+      <li class="step">
+        <span class="step-no" aria-hidden="true">1</span>
+        <h3>下载，解压</h3>
+        <p>从 GitHub Releases 下载便携版，双击 <code>RandomPicker.exe</code> 就能用。自包含发布，不用装 .NET，也不要管理员权限。</p>
+      </li>
+      <li class="step">
+        <span class="step-no" aria-hidden="true">2</span>
+        <h3>导入名单</h3>
+        <p>一个 TXT 文件，一行一个名字。行首的学号、空行、重复名字都会自动清理，记事本存出来的「ANSI」编码也认。</p>
+      </li>
+      <li class="step">
+        <span class="step-no" aria-hidden="true">3</span>
+        <h3>开始点名</h3>
+        <p>名字以 0.1 秒一人的速度滚动，按下空格随时定格。插上翻页笔，站在教室最后一排也能控场。</p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- ========== 使用说明书 ========== -->
+<section class="section" id="manual" style="padding-top:0">
+  <div class="wrap">
+    <h2 class="section-title reveal">使用说明书</h2>
+    <div class="manual-head reveal">
+      <span class="manual-title">随 机 点 名</span>
+      <span class="manual-edition">第 1 版 · 与 v1.0.0 同步</span>
+    </div>
+    <div class="stagger">
+      <div class="manual-row">
+        <h3>滚动点名</h3>
+        <p>每 0.1 秒换一个名字，定格瞬间卡片轻微回弹。<strong>140 号大字</strong>投在白板上，最后一排也看得清。</p>
+      </div>
+      <div class="manual-row">
+        <h3>空格控制</h3>
+        <p>空格键就是开始和停止，<strong>翻页笔上的空格同样有效</strong>。讲课讲到一半想点人，手不用碰鼠标。</p>
+      </div>
+      <div class="manual-row">
+        <h3>多班级</h3>
+        <p>教几个班就建几个班。左侧边栏列出所有班级，<strong>点哪个班就在哪个班点名</strong>，名单互不串场。</p>
+      </div>
+      <div class="manual-row">
+        <h3>名单导入</h3>
+        <p>TXT 拖进来就行。UTF-8、UTF-16、GB18030 编码自动识别，<strong>「01 张三」「12、李四」的序号自动剥掉</strong>。导入时可选新建、覆盖或追加。</p>
+      </div>
+      <div class="manual-row">
+        <h3>数据在本地</h3>
+        <p>名单保存在程序旁边的 <code style="font-family:ui-monospace,Consolas,monospace;font-size:.88em;background:var(--paper-dim);border:1px solid var(--hairline);border-radius:5px;padding:1px 7px">data.json</code>，拷走就是备份。<strong>没有任何云端</strong>，断网也照常用。</p>
+      </div>
+      <div class="manual-row">
+        <h3>免费且开源</h3>
+        <p>代码在 GitHub 上公开，随便看、随便用。发现问题，欢迎提 Issue。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== 隐藏玩法 ========== -->
+<section class="section secret" id="secret">
+  <div class="wrap">
+    <h2 class="section-title reveal">嘘——老师的隐藏玩法</h2>
+    <p class="section-lead reveal" style="--d:120ms">随机点名，当然也有「不那么随机」的时候。滚动的时候做一点小动作，结果就会如你所愿。这个功能，说明书上没有。</p>
+    <ul class="secret-lines stagger">
+      <li>打开程序旁边的 <span class="redact">unrandom.txt</span>，写一行 <span class="redact">A = 王小明</span></li>
+      <li>名字滚起来的时候，悄悄按下 <span class="redact">A 键</span></li>
+      <li>停下来的就是 <span class="redact">王小明</span>，界面毫无痕迹</li>
+      <li>只生效这一次，下一局自动恢复纯随机</li>
+    </ul>
+    <p class="secret-hint reveal">鼠标放上去（或点一下），看看被涂掉的部分。</p>
+    <p class="secret-note reveal">什么时候该用？<em>总得有个人</em>来回答黑板上这道题。</p>
+  </div>
+</section>
+
+<!-- ========== 规格 ========== -->
+<section class="section" id="specs">
+  <div class="wrap">
+    <h2 class="section-title reveal">规格</h2>
+    <dl class="spec-grid stagger">
+      <div class="spec-row"><dt>平台</dt><dd>Windows 10（1809）及以上</dd></div>
+      <div class="spec-row"><dt>架构</dt><dd>x64 · x86 · ARM64</dd></div>
+      <div class="spec-row"><dt>安装</dt><dd>解压即用，不写注册表，卸载不留痕</dd></div>
+      <div class="spec-row"><dt>运行环境</dt><dd>自包含，无需安装 .NET</dd></div>
+      <div class="spec-row"><dt>界面</dt><dd>WinUI 3 · Mica 材质 · 全中文</dd></div>
+      <div class="spec-row"><dt>数据</dt><dd>程序同目录 data.json，随时备份迁移</dd></div>
+      <div class="spec-row"><dt>价格</dt><dd>免费，代码开源</dd></div>
+      <div class="spec-row"><dt>源码</dt><dd><a href="https://github.com/DXrrenXx/RandomPicker" target="_blank" rel="noopener">github.com/DXrrenXx/RandomPicker</a></dd></div>
+    </dl>
+  </div>
+</section>
+
+<!-- ========== 下载 CTA ========== -->
+<section class="section" id="download" style="padding-top:20px">
+  <div class="wrap cta-inner">
+    <div class="stamp reveal" data-from="pop">免费<br>开源</div>
+    <h2 class="cta-title reveal">下一节课，<br>换个点名方式。</h2>
+    <p class="cta-sub reveal" style="--d:120ms">便携版解压即用，安装版双击装好。都免费，都不用装运行环境。</p>
+    <div class="cta-btns reveal" style="--d:240ms">
+      <a class="btn btn-red" href="https://github.com/DXrrenXx/RandomPicker/releases" target="_blank" rel="noopener">去 GitHub 下载</a>
+      <a class="btn btn-ink" href="https://github.com/DXrrenXx/RandomPicker" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+        看看源码
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ========== 页脚 ========== -->
+<footer class="footer">
+  <div class="wrap footer-inner">
+    <span class="seal" style="width:28px;height:28px;font-size:16px;border-radius:6px">点</span>
+    <span>随机点名 · Made by XU</span>
+    <span class="gap"></span>
+    <a href="https://github.com/DXrrenXx/RandomPicker/releases" target="_blank" rel="noopener">v1.0.0 更新说明</a>
+    <a href="https://github.com/DXrrenXx/RandomPicker" target="_blank" rel="noopener">GitHub</a>
+  </div>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ========== 滚动显现系统 ========== */
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+    });
+  }, { threshold: 0.16 });
+
+  document.querySelectorAll('.stagger').forEach(function (g) {
+    Array.prototype.forEach.call(g.children, function (c, i) {
+      c.style.setProperty('--i', i);
+    });
+  });
+
+  document.querySelectorAll('.reveal, .stagger').forEach(function (el) {
+    if (reduceMotion) { el.classList.add('in'); } else { io.observe(el); }
+  });
+
+  /* ========== 导航滚动态 ========== */
+  var nav = document.getElementById('nav');
+  window.addEventListener('scroll', function () {
+    nav.classList.toggle('scrolled', window.scrollY > 8);
+  }, { passive: true });
+
+  /* ========== 隐藏玩法：涂抹揭示（触屏点按） ========== */
+  document.querySelectorAll('.redact').forEach(function (el) {
+    el.addEventListener('click', function () { el.classList.toggle('open'); });
+  });
+
+  /* ========== Live Demo 点名台 ========== */
+  var NAMES = ['王雨桐','李浩然','张梓萱','刘子墨','陈诗涵','杨晨曦','赵思远','黄嘉怡','周子轩','吴雅静','徐天佑','孙艺涵','胡文博','朱雨欣','高子豪','林思彤','何宇航','郭欣怡','马俊杰','罗雅婷','梁思远','宋雨泽','郑浩然','谢婉婷'];
+  var nameEl = document.getElementById('demoName');
+  var btn = document.getElementById('demoBtn');
+  var circle = document.getElementById('circleMark');
+  var history = document.getElementById('demoHistory');
+  var demo = document.getElementById('demo');
+  var rolling = false, timer = null, lastShown = null, picked = [];
+
+  function randomName() {
+    var n;
+    do { n = NAMES[Math.floor(Math.random() * NAMES.length)]; }
+    while (NAMES.length > 1 && n === lastShown);
+    return n;
+  }
+
+  function showName(n, placeholder) {
+    nameEl.textContent = n;
+    nameEl.classList.toggle('is-placeholder', !!placeholder);
+  }
+
+  function startRoll() {
+    rolling = true;
+    btn.textContent = '停 ！';
+    circle.classList.remove('draw');
+    showName(randomName());
+    timer = setInterval(function () {
+      var n = randomName();
+      lastShown = n;
+      showName(n);
+    }, 90);
+  }
+
+  function stopRoll() {
+    rolling = false;
+    clearInterval(timer);
+    var n = randomName();
+    lastShown = n;
+    showName(n);
+    btn.textContent = '再点一个';
+
+    // 红笔圈名：按名字宽度调整圈的大小，重播描边动画
+    circle.classList.remove('draw');
+    circle.style.width = Math.max(nameEl.offsetWidth * 1.3, 220) + 'px';
+    void circle.getBoundingClientRect(); // 强制 reflow 以重启动画
+    circle.classList.add('draw');
+
+    // 点到记录
+    picked.unshift(n);
+    if (picked.length > 6) picked.pop();
+    history.innerHTML = '这节课点到过：' + picked.map(function (p, i) {
+      return '<span style="opacity:' + (1 - i * 0.14) + '">' + p + '</span>';
+    }).join('、');
+  }
+
+  function toggle() { rolling ? stopRoll() : startRoll(); }
+
+  btn.addEventListener('click', toggle);
+
+  // 空格键：仅当点名台在视口内时接管，避免影响正常翻页
+  var demoInView = false;
+  new IntersectionObserver(function (entries) {
+    demoInView = entries[0].isIntersecting;
+  }, { threshold: 0.35 }).observe(demo);
+
+  window.addEventListener('keydown', function (e) {
+    if (e.code !== 'Space' || !demoInView) return;
+    var t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'A')) return;
+    e.preventDefault();
+    toggle();
+  });
+})();
+</script>
+</body>
+</html>
