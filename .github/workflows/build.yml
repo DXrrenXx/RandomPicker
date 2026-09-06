@@ -3,11 +3,15 @@ name: 构建 Windows EXE
 on:
   push:
     branches: [ main, master ]
+    tags: [ 'v*' ]   # 推送 v1.0.0 之类的 tag 时构建并发布 Release
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: windows-latest
+
+    permissions:
+      contents: write   # 允许创建 Release 并上传资产
 
     steps:
       - name: 检出代码
@@ -50,3 +54,13 @@ jobs:
         with:
           name: RandomPicker-Setup
           path: installer/*.exe
+
+      # 仅 tag 触发时执行：把构建产物发布到 GitHub Release
+      - name: 发布到 GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: RELEASE_NOTES.md
+          files: |
+            RandomPicker.zip
+            installer/*.exe
