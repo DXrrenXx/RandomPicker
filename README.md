@@ -1,50 +1,51 @@
-# 随机点名（WinUI 3）
+# 随机点名 RandomPicker for Class
 
-一个适用于课堂的 Windows 桌面随机点名软件，界面完全遵循 **WinUI 3 / Fluent Design**：
-Mica 背景材质、NavigationView 侧边导航、原生 ContentDialog / InfoBar / TeachingTip / MenuFlyout 弹窗。
+一个适用于课堂的 Windows 桌面随机点名软件。界面完全遵循 WinUI 3 / Fluent Design：Mica 背景材质、NavigationView 侧边导航、原生弹窗与操作反馈。
 
-## 功能
+这是首个正式版本。
 
-- **点名台**：居中大字姓名窗口，点击「开始随机」后以 0.1 秒/人的速度滚动名字，按钮同时变为「停止」，随时按下即定格抽中结果（定格带轻微回弹动画）
-- **班级切换**：左侧 NavigationView 直接列出所有班级，点哪个班就在哪个班点名
-- **班级管理**：
-  - 导入 TXT 名单（自动剥行首序号、去空行、去重；自动识别 UTF-8 / UTF-16 / GB18030「ANSI」编码）
-  - 导入方式三选一：新建班级 / 覆盖当前班级 / 追加到当前班级
-  - 新建、重命名、删除班级（删除需二次确认），导出名单为 TXT
-  - 添加、删除、重命名单个同学（支持右键菜单、多行批量粘贴）
-- **数据持久化**：所有班级保存在 exe 同目录的 `data.json`，关机不丢，可随时备份迁移
-- **快捷键**：空格键 = 开始 / 停止（配合翻页笔也能用）
+## 功能亮点
 
-## 如何获得 EXE（GitHub Actions 云端构建，本机无需任何环境）
+### 点名台
 
-1. 注册 / 登录 [GitHub](https://github.com)，点右上角 **+** → **New repository** 新建一个仓库（选 Public，免费且能用 Actions）
-2. 把本项目**整个文件夹里的所有内容**（含 `.github` 隐藏文件夹！）上传到仓库：
-   - 网页方式：仓库页点 **uploading an existing file**，把 `RandomPicker` 文件夹里的全部内容直接拖进去（支持拖整个文件夹），点 **Commit changes**
-   - 或命令行方式：
-     ```bash
-     git init
-     git add .
-     git commit -m "随机点名 v1.0"
-     git remote add origin https://github.com/你的用户名/仓库名.git
-     git branch -M main
-     git push -u origin main
-     ```
-3. 打开仓库的 **Actions** 标签页，会自动出现「构建 Windows EXE」工作流，等待约 5 分钟变绿 ✔
-4. 点进这次运行，页面底部 **Artifacts** 区域下载 **RandomPicker-EXE**
-5. 解压 zip，双击 **RandomPicker.exe** 即可运行（自包含发布，不需要安装 .NET 运行时）
-   - 首次运行如出现 SmartScreen 蓝色提示：点「更多信息」→「仍要运行」
+- 居中大字姓名窗口，点击「开始随机」后以 0.1 秒/人的速度滚动名字
+- 按钮随时变为「停止」，按下即定格抽中结果（定格带轻微回弹动画）
+- 空格键 = 开始 / 停止，配合翻页笔也能用
 
-> ⚠️ 上传时如果漏掉 `.github/workflows/build.yml`，Actions 就不会自动构建。
+### 班级切换与管理
 
-## 本机编译（备选方案）
+- 左侧导航直接列出所有班级，点哪个班就在哪个班点名
+- 导入 TXT 名单，自动剥行首序号、去空行、去重
+- 自动识别 UTF-8 / UTF-16 / GB18030「ANSI」编码，国内记事本文件直接可用
+- 导入方式三选一：新建班级 / 覆盖当前班级 / 追加到当前班级
+- 新建、重命名、删除班级（删除需二次确认），导出名单为 TXT
+- 添加、删除、重命名单个同学，支持右键菜单与多行批量粘贴
 
-装有 [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) 的 Windows 电脑上，在本目录执行：
+### 数据安全
 
-```powershell
-dotnet publish RandomPicker/RandomPicker.csproj -c Release -r win-x64 -p:Platform=x64 -p:SelfContained=true -p:WindowsAppSDKSelfContained=true -o publish
-```
+- 所有班级保存在 exe 同目录的 `data.json`，关机不丢，可随时备份迁移
+- 原子写入保护：先写临时文件再替换，断电 / 崩溃也不会损坏数据文件
+- 数据文件损坏时自动回退为全新数据，应用不会崩溃
 
-生成的 exe 在 `publish\` 文件夹里。也可以用 Visual Studio 2022（含"WinUI 应用程序开发"工作负载）直接打开运行。
+## 下载
+
+| 文件 | 说明 |
+|---|---|
+| `RandomPicker-EXE.zip` | 便携版，解压即用，不需要安装 |
+| `RandomPicker-Setup-1.0.0.exe` | 安装版（Inno Setup，按当前用户安装，无需管理员权限） |
+
+两个包均为自包含发布，**不需要安装 .NET 运行时**。
+
+## 系统要求
+
+- Windows 10 1809（内部版本 17763）及以上，x64
+- 无其他依赖
+
+## 安装与首次运行
+
+1. 便携版：解压 `RandomPicker-EXE.zip`，双击 `RandomPicker.exe` 即可运行
+2. 安装版：运行 `RandomPicker-Setup-1.0.0.exe`，按向导完成安装（可选创建桌面快捷方式）
+3. 首次运行如出现 SmartScreen 蓝色提示：点「更多信息」→「仍要运行」
 
 ## TXT 名单格式
 
@@ -57,6 +58,26 @@ dotnet publish RandomPicker/RandomPicker.csproj -c Release -r win-x64 -p:Platfor
 101 赵六
 ```
 
-## 技术栈
+## 快捷键
 
-.NET 8 · Windows App SDK 1.5 · WinUI 3（unpackaged）· C#
+| 按键 | 作用 |
+|---|---|
+| 空格 | 开始 / 停止随机 |
+
+## 数据位置
+
+所有班级数据保存在程序同目录的 `data.json`。卸载应用不会删除该文件，名单不会丢失，可随时备份或迁移到其他电脑。
+
+## 从源码构建
+
+装有 [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) 的 Windows 电脑上，在本目录执行：
+
+```powershell
+dotnet publish RandomPicker/RandomPicker.csproj -c Release -r win-x64 -p:Platform=x64 -p:SelfContained=true -p:WindowsAppSDKSelfContained=true -o publish
+```
+
+也可以直接把仓库推到 GitHub，Actions 会自动构建并产出上述两个安装包。
+
+---
+
+Made by XU
